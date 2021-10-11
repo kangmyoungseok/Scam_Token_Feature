@@ -13,6 +13,7 @@ import time
 def switch_token(result):
     for pair in result['data']['pairs']:
         if (int(pair['token0']['txCount']) > int(pair['token1']['txCount'] )):
+            pair['reserve0'],pair['reserve1'] = pair['reserve1'],pair['reserve0']
             pair['token0'],pair['token1'] = pair['token1'],pair['token0']
     
 # function to use requests.post to make an API call to the subgraph url

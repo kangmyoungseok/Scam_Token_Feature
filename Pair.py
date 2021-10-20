@@ -13,8 +13,11 @@ import time
 def switch_token(result):
     for pair in result['data']['pairs']:
         if (int(pair['token0']['txCount']) > int(pair['token1']['txCount'] )):
-            pair['reserve0'],pair['reserve1'] = pair['reserve1'],pair['reserve0']
-            pair['token0'],pair['token1'] = pair['token1'],pair['token0']
+            pair['reserve00'],pair['reserve11'] = pair['reserve1'],pair['reserve0']
+            pair['token00'],pair['token11'] = pair['token1'],pair['token0']
+        else:
+            pair['reserve00'],pair['reserve11'] = pair['reserve0'],pair['reserve1']
+            pair['token00'],pair['token11'] = pair['token0'],pair['token1']
     
 # function to use requests.post to make an API call to the subgraph url
 def run_query(query):
@@ -55,7 +58,6 @@ query_init = '''
    txCount
    createdAtTimestamp
    createdAtBlockNumber
-   liquidityProviderCount
  }
 }
 ''' 
@@ -87,7 +89,6 @@ query_iter = '''
    txCount
    createdAtTimestamp
    createdAtBlockNumber
-   liquidityProviderCount
  }
 }
 ''' 
@@ -124,13 +125,16 @@ try:
             pair_frame.append(pair)
         query_iter = query_iter.replace(last_block,result['data']['pairs'][999]['createdAtBlockNumber'])
         last_block = result['data']['pairs'][999]['createdAtBlockNumber']
-        time.sleep(3)
+        #time.sleep(15)
         print(last_block)
 
 except Exception as e:
-#    print(result['errors'])
+    try:
+      print(result['errors'])
+    except:
+      print(e)
     df = pd.json_normalize(pair_frame)
-    df.to_csv('Pairs.csv',encoding='utf-8-sig')
+    df.to_csv('Pairs_v1.1.csv',encoding='utf-8-sig',index=False)
 
 
 

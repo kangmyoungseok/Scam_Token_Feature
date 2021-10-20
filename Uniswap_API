@@ -1,0 +1,309 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "name": "Untitled5.ipynb",
+      "provenance": [],
+      "collapsed_sections": [],
+      "authorship_tag": "ABX9TyOjVzkUS9ZfQgKcQff11U8B",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "accelerator": "GPU"
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/kangmyoungseok/Scam_Token_listing/blob/main/Uniswap_API\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 386
+        },
+        "id": "6lA4Vc1yP7_x",
+        "outputId": "eea02fee-a436-40ad-a9d0-85a37c817d7e"
+      },
+      "source": [
+        "from pprint import pprint\n",
+        "from pandas.core.frame import DataFrame\n",
+        "import pandas as pd\n",
+        "import json\n",
+        "import requests\n",
+        "import time\n",
+        "from tqdm import tqdm\n",
+        "from multiprocessing import Pool\n",
+        "# function to use requests.post to make an API call to the subgraph url\n",
+        "\n",
+        "global df\n",
+        "global df_len\n",
+        "global count\n",
+        "df = pd.read_csv('./Pairs_v1.1.csv').to_dict()\n",
+        "df_len = len(df['id'])\n",
+        "count = 0\n",
+        "\n",
+        "\n",
+        "def run_query(query):\n",
+        "\n",
+        "    # endpoint where you are making the request\n",
+        "    request = requests.post('https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2'\n",
+        "                            '',\n",
+        "                            json={'query': query})\n",
+        "    if request.status_code == 200:\n",
+        "        return request.json()\n",
+        "    else:\n",
+        "        raise Exception('Query failed. return code is {}.      {}'.format(request.status_code, query))\n",
+        "\n",
+        "\n",
+        "mint_query_template = '''\n",
+        "{\n",
+        "  mints(orderBy: timestamp, orderDirection: desc, where:{ pair: \"pair_address\" }) {\n",
+        "      amount0\n",
+        "      amount1\n",
+        "      to\n",
+        "      sender\n",
+        "      timestamp\n",
+        " }\n",
+        "}\n",
+        "''' \n",
+        "\n",
+        "swap_query_template = '''\n",
+        "{\n",
+        "  swaps(orderBy: timestamp, orderDirection: desc, where:{ pair: \"pair_address\" }) {\n",
+        "      amount0In\n",
+        "      amount0Out\n",
+        "      amount1In\n",
+        "      amount1Out\n",
+        "      to\n",
+        "      sender\n",
+        "      timestamp\n",
+        " }\n",
+        "}\n",
+        "''' \n",
+        "\n",
+        "burn_query_template = '''\n",
+        "{\n",
+        "  burns(orderBy: timestamp, orderDirection: desc, where:{ pair: \"pair_address\" }) {\n",
+        "      amount0\n",
+        "      amount1\n",
+        "      to\n",
+        "      sender\n",
+        "      timestamp\n",
+        " }\n",
+        "}\n",
+        "''' \n",
+        "\n",
+        "#############모든 pair 쌍에 대해서 Mint Query 후 결과 저장##############\n",
+        "def get_mint_subProcess(pair_address):\n",
+        "    global count\n",
+        "    try:\n",
+        "        query = mint_query_template.replace('pair_address',pair_address)\n",
+        "        result = run_query(query)\n",
+        "        return {pair_address : result['data']['mints']}\n",
+        "    except:\n",
+        "        return {pair_address : ['Error Occur']}\n",
+        "    finally:\n",
+        "        count = count +1\n",
+        "        if (count % 100) ==0:\n",
+        "          print(str(count) + \"/\" + str(df_len))\n",
+        "            \n",
+        "def get_mint():\n",
+        "    mint_json = {}\n",
+        "    try:\n",
+        "        pool = Pool(processes=8)\n",
+        "        mint_json = pool.map(get_mint_subProcess,df['id'].values())\n",
+        "    except Exception as e:\n",
+        "        print(e)\n",
+        "        \n",
+        "    file_path = \"./mint.json\"\n",
+        "    with open(file_path,'w') as outfile:\n",
+        "        json.dump(mint_json, outfile, indent=4)\n",
+        "\n",
+        "\n",
+        "#############모든 pair 쌍에 대해서 Swap Query 후 결과 저장##############\n",
+        "def get_swap_subProcess(pair_address):\n",
+        "    global count\n",
+        "    try:\n",
+        "        query = swap_query_template.replace('pair_address',pair_address)\n",
+        "        result = run_query(query)\n",
+        "        return {pair_address : result['data']['swaps']}\n",
+        "    except:\n",
+        "        return {pair_address : ['Error Occur']}\n",
+        "    finally:\n",
+        "        count = count +1\n",
+        "        if (count % 100) ==0:\n",
+        "          print(str(count) + \"/\" + str(df_len))\n",
+        "            \n",
+        "def get_swap():\n",
+        "    swap_json = {}\n",
+        "    try:\n",
+        "        pool = Pool(processes=4)\n",
+        "        swap_json = pool.map(get_swap_subProcess,df['id'].values())\n",
+        "    except Exception as e:\n",
+        "        print(e)\n",
+        "        \n",
+        "    file_path = \"./swap.json\"\n",
+        "    with open(file_path,'w') as outfile:\n",
+        "        json.dump(swap_json, outfile, indent=4)\n",
+        "    \n",
+        "\n",
+        "#############모든 pair 쌍에 대해서 Burn Query 후 결과 저장##############\n",
+        "def get_burn_subProcess(pair_address):\n",
+        "    global count\n",
+        "    try:\n",
+        "        query = burn_query_template.replace('pair_address',pair_address)\n",
+        "        result = run_query(query)\n",
+        "        return {pair_address : result['data']['burns']}\n",
+        "    except:\n",
+        "        return {pair_address : ['Error Occur']}\n",
+        "    finally:\n",
+        "        count = count +1\n",
+        "        if (count % 100) ==0:\n",
+        "          print(str(count) + \"/\" + str(df_len))\n",
+        "            \n",
+        "def get_burn():\n",
+        "    burn_json = {}\n",
+        "    try:\n",
+        "        pool = Pool(processes=4)\n",
+        "        burn_json = pool.map(get_burn_subProcess,df['id'].values())\n",
+        "    except Exception as e:\n",
+        "        print(e)\n",
+        "        \n",
+        "    file_path = \"./burn.json\"\n",
+        "    with open(file_path,'w') as outfile:\n",
+        "        json.dump(burn_json, outfile, indent=4)\n",
+        "\n",
+        "\n",
+        "if __name__=='__main__': \n",
+        "    get_mint()\n",
+        "#    get_burn()\n",
+        "#    get_swap()"
+      ],
+      "execution_count": 48,
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "KeyboardInterrupt",
+          "evalue": "ignored",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mKeyboardInterrupt\u001b[0m                         Traceback (most recent call last)",
+            "\u001b[0;32m<ipython-input-48-5bb53a3a67f4>\u001b[0m in \u001b[0;36m<module>\u001b[0;34m()\u001b[0m\n\u001b[1;32m     12\u001b[0m \u001b[0;32mglobal\u001b[0m \u001b[0mdf_len\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     13\u001b[0m \u001b[0;32mglobal\u001b[0m \u001b[0mcount\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 14\u001b[0;31m \u001b[0mdf\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mpd\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mread_csv\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m'./Pairs_v1.1.csv'\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mto_dict\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     15\u001b[0m \u001b[0mdf_len\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mlen\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdf\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m'id'\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     16\u001b[0m \u001b[0mcount\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0;36m0\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.7/dist-packages/pandas/core/frame.py\u001b[0m in \u001b[0;36mto_dict\u001b[0;34m(self, orient, into)\u001b[0m\n\u001b[1;32m   1505\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1506\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0morient\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m\"dict\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 1507\u001b[0;31m             \u001b[0;32mreturn\u001b[0m \u001b[0minto_c\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mk\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mv\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mto_dict\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0minto\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m \u001b[0;32mfor\u001b[0m \u001b[0mk\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mv\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mitems\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   1508\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1509\u001b[0m         \u001b[0;32melif\u001b[0m \u001b[0morient\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m\"list\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.7/dist-packages/pandas/core/frame.py\u001b[0m in \u001b[0;36m<genexpr>\u001b[0;34m(.0)\u001b[0m\n\u001b[1;32m   1505\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1506\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0morient\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m\"dict\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 1507\u001b[0;31m             \u001b[0;32mreturn\u001b[0m \u001b[0minto_c\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mk\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mv\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mto_dict\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0minto\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m \u001b[0;32mfor\u001b[0m \u001b[0mk\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mv\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mitems\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   1508\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1509\u001b[0m         \u001b[0;32melif\u001b[0m \u001b[0morient\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m\"list\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.7/dist-packages/pandas/core/series.py\u001b[0m in \u001b[0;36mto_dict\u001b[0;34m(self, into)\u001b[0m\n\u001b[1;32m   1572\u001b[0m         \u001b[0;31m# GH16122\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1573\u001b[0m         \u001b[0minto_c\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mcom\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mstandardize_mapping\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0minto\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 1574\u001b[0;31m         \u001b[0;32mreturn\u001b[0m \u001b[0minto_c\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mitems\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   1575\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1576\u001b[0m     \u001b[0;32mdef\u001b[0m \u001b[0mto_frame\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mname\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;32mNone\u001b[0m\u001b[0;34m)\u001b[0m \u001b[0;34m->\u001b[0m \u001b[0;34m\"DataFrame\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mKeyboardInterrupt\u001b[0m: "
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "-cS-HsPxQMUu"
+      },
+      "source": [
+        "from pprint import pprint\n",
+        "from pandas.core.frame import DataFrame\n",
+        "import pandas as pd\n",
+        "import json\n",
+        "import requests\n",
+        "import time\n",
+        "from tqdm import tqdm\n",
+        "from multiprocessing import Pool\n",
+        "# function to use requests.post to make an API call to the subgraph url\n",
+        "\n",
+        "global df\n",
+        "global df_len\n",
+        "#global count\n",
+        "df = pd.read_csv('./sample.csv').to_dict()\n",
+        "df_len = len(df['id'])\n",
+        "#count = 0"
+      ],
+      "execution_count": 30,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "MlmxlqiASP3l",
+        "outputId": "fb98a3cf-1cfa-437d-c7e9-56b3b0589097"
+      },
+      "source": [
+        "len(df['id'].values())"
+      ],
+      "execution_count": 39,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "7"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 39
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 35
+        },
+        "id": "1QFPccD6SRTk",
+        "outputId": "0c4dc176-83ba-4069-e2dd-91cd9aaa7517"
+      },
+      "source": [
+        "df['id'][0]"
+      ],
+      "execution_count": 11,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "application/vnd.google.colaboratory.intrinsic+json": {
+              "type": "string"
+            },
+            "text/plain": [
+              "'0xc275ca6e45da9ce8f479b28eea64ef9f5d1ea7f4'"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 11
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "L8B-zcNtSTru"
+      },
+      "source": [
+        ""
+      ],
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}

@@ -16,13 +16,14 @@ Listing scam tokens in Uniswap
 - Json 파일을 크기가 커서 Github에 안올라 가기 때문에 로컬에 저장해 둔다.
 
 # 10.21 MBS_Active.py 업로드
-- 각각의 Json파일을 이용하여 다음의 피처를 도출해 낸다.
-1. 전체 Active Period중 Mint Transaction의 평균 발생 지점
-2. 전체 Active Period중 Burn Transaction의 평균 발생 지점
-3. 전체 Active Period중 Swap Transaction의 평균 발생 지점
+###  각각의 Json파일을 이용하여 다음의 피처를 도출해 낸다.
+- __전체 Active Period중 Mint Transaction의 평균 발생 지점(Burn Swap도 동일)__
+  + <a href="https://www.codecogs.com/eqnedit.php?latex=\frac{Mint\,&space;Average\,&space;\,&space;TimeStamp&space;}&space;{Active&space;Period}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\frac{Mint\,&space;Average\,&space;\,&space;TimeStamp&space;}&space;{Active&space;Period}" title="\frac{Mint\, Average\, \, TimeStamp } {Active Period}" /></a>  
+  + <a href="https://www.codecogs.com/eqnedit.php?latex=Mint\,&space;Average\,&space;\,&space;TimeStamp&space;=&space;\frac{\sum_{i=1}^{N}&space;mint_{i}&space;-&space;FirstTimestamp&space;}{N}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?Mint\,&space;Average\,&space;\,&space;TimeStamp&space;=&space;\frac{\sum_{i=1}^{N}&space;mint_{i}&space;-&space;FirstTimestamp&space;}{N}" title="Mint\, Average\, \, TimeStamp = \frac{\sum_{i=1}^{N} mint_{i} - FirstTimestamp }{N}" /></a>
 
-- 전체 Active Period : ( Last Transaction TimeStamp - First Transaction TimeStamp )
-- Last Transaction TimeStamp : Mint/Burn/Swap의 TimeStamp중 가장 마지막
-- First Transaction TimeStamp : Mint의 첫번째 TimeStamp
+  + 전체 Active Period : ( Last Transaction TimeStamp - First Transaction TimeStamp )
+  + Last Transaction TimeStamp : Mint/Burn/Swap의 TimeStamp중 가장 마지막
+  + First Transaction TimeStamp : Mint의 첫번째 TimeStamp
 
-\frac{\sum_{i=1}^{N} mint_{i} - FirstTimestamp }{N}
+- __Mint/Burn/Swap의 수__
+- __Swap-In / Swap-Out의 비율__

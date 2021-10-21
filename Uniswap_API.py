@@ -6,15 +6,15 @@ import requests
 import time
 from tqdm import tqdm
 from multiprocessing import Pool
+from multiprocessing import Process
 # function to use requests.post to make an API call to the subgraph url
 
 global df
 global df_len
-global count
 df = pd.read_csv('./Pairs_v1.1.csv').to_dict()
 df_len = len(df['id'])
-count = 0
-
+global count
+count= 0
 
 def run_query(query):
 
@@ -71,31 +71,120 @@ def get_mint_subProcess(pair_address):
     try:
         query = mint_query_template.replace('pair_address',pair_address)
         result = run_query(query)
-        return {pair_address,result['data']['mints']}
+        return {pair_address : result['data']['mints']}
     except:
-        return {pair_address,['Error Occur']}
-    finally:
-        count = count+1
-        if(count %100 == 0):
-            print(str(count) + "/" + str(df_len))
-    
-
+        return {pair_address : ['Error Occur']}
+        
 def get_mint():
+    file_path = "./mint.json"
+    mint_json = {}
     try:
-        pool = Pool(processes=4)
-        mint_json = pool.map(get_mint_subProcess,df['id'])
+      p = Pool(24)
+      start = time.time()
+      global count
+      for ret in p.imap(get_mint_subProcess,df['id'].values()):
+        count = count+1
+#        print("Got value",ret,"Time :",time.time()-start)
+        mint_json.update(ret)
+        if(count % 500 == 0):
+          print("Process Rate : {}/{} {}%".format(count,df_len,int((count/df_len)*100)))
+          print("write file count : " + str(count))
+          with open(file_path,'w') as outfile:
+            json.dump(mint_json, outfile, indent=4)    
+  
+      print('finish ' + str(count))
+      with open(file_path,'w') as outfile:
+            json.dump(mint_json, outfile, indent=4)
+      delta_t = time.time() - start
+      print("Total Time :",delta_t)
+      p.close()
+      p.join()
+      mint_json.clear()        
+
     except Exception as e:
         print(e)
-    finally:
-        file_path = "./mint.json"
-        with open(file_path,'w') as outfile:
-            json.dump(mint_json, outfile, indent=4)
 
-    
+
+#############모든 pair 쌍에 대해서 Mint Query 후 결과 저장##############
+def get_swap_subProcess(pair_address):
+    try:
+        query = swap_query_template.replace('pair_address',pair_address)
+        result = run_query(query)
+        return {pair_address : result['data']['swaps']}
+    except:
+        return {pair_address : ['Error Occur']}
+        
+def get_swap():
+    file_path = "./swap.json"
+    swap_json = {}
+    try:
+        p = Pool(8)
+        start = time.time()
+        global count
+        for ret in p.imap(get_swap_subProcess,df['id'].values()):
+            count = count+1
+            swap_json.update(ret)
+            if(count % 500 == 0):
+                print("Process Rate : {}/{} {}%".format(count,df_len,int((count/df_len)*100)))
+                print("write file count : " + str(count))
+                with open(file_path,'w') as outfile:
+                    json.dump(swap_json, outfile, indent=4)    
+  
+        p.close()
+        p.join()
+        print('finish ' + str(count))
+        with open(file_path,'w') as outfile:
+            json.dump(swap_json, outfile, indent=4)
+        delta_t = time.time() - start
+        print("Total Time :",delta_t)
+        swap_json.clear()        
+
+    except Exception as e:
+        print(e)
+
+
+
+#############모든 pair 쌍에 대해서 Burn Query 후 결과 저장##############
+def get_burn_subProcess(pair_address):
+    try:
+        query = burn_query_template.replace('pair_address',pair_address)
+        result = run_query(query)
+        return {pair_address : result['data']['burns']}
+    except:
+        return {pair_address : ['Error Occur']}
+        
+def get_burn():
+    file_path = "./burn.json"
+    burn_json = {}
+    try:
+        p = Pool(24)
+        start = time.time()
+        global count
+        for ret in p.imap(get_burn_subProcess,df['id'].values()):
+            count = count+1
+            burn_json.update(ret)
+            if(count % 500 == 0):
+                print("Process Rate : {}/{} {}%".format(count,df_len,int((count/df_len)*100)))
+                print("write file count : " + str(count))
+                with open(file_path,'w') as outfile:
+                    json.dump(burn_json, outfile, indent=4)    
+  
+        p.close()
+        p.join()
+        print('finish ' + str(count))
+        with open(file_path,'w') as outfile:
+            json.dump(burn_json, outfile, indent=4)
+        delta_t = time.time() - start
+        print("Total Time :",delta_t)
+        burn_json.clear()        
+
+    except Exception as e:
+        print(e)
+
 
 
 
 if __name__=='__main__': 
-    get_mint()
+#    get_mint()
 #    get_burn()
-#    get_swap()
+    get_swap()
